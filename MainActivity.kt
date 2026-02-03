@@ -10,7 +10,7 @@ class MainActivity : AppCompatActivity() {
         super.onCreate(savedInstanceState)
         
         val textView = TextView(this)
-        textView.text = "Bhai, Era Share khul gaya! 🎉"
+        textView.text = "Bhai, Era Share khul gaya! 🎉\nAb hum AI jodenget."
         textView.textSize = 24f
         textView.gravity = Gravity.CENTER
         
