@@ -1,98 +1,56 @@
 package com.example.gestureshare
 
+import android.Manifest
+import android.content.pm.PackageManager
 import android.os.Bundle
 import android.widget.TextView
 import android.widget.Toast
 import androidx.appcompat.app.AppCompatActivity
-import androidx.camera.core.*
-import androidx.camera.lifecycle.ProcessCameraProvider
-import androidx.camera.view.PreviewView
+import androidx.core.app.ActivityCompat
 import androidx.core.content.ContextCompat
-import com.google.android.gms.nearby.Nearby
-import com.google.android.gms.nearby.connection.*
-import com.google.mediapipe.tasks.vision.core.RunningMode
-import com.google.mediapipe.tasks.vision.handlandmarker.HandLandmarker
-import com.google.mediapipe.tasks.vision.handlandmarker.HandLandmarkerOptions
-import java.util.concurrent.Executors
 
 class MainActivity : AppCompatActivity() {
-
-    private lateinit var viewFinder: PreviewView
-    private lateinit var gestureStatus: TextView
-    private var handLandmarker: HandLandmarker? = null
     
-    private val SERVICE_ID = "com.era.share.SERVICE"
-    private val STRATEGY = Strategy.P2P_POINT_TO_POINT
+    private val REQUIRED_PERMISSIONS = arrayOf(
+        Manifest.permission.CAMERA,
+        Manifest.permission.ACCESS_FINE_LOCATION,
+        Manifest.permission.NEARBY_WIFI_DEVICES
+    )
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        setContentView(R.layout.activity_main)
-
-        viewFinder = findViewById(R.id.viewFinder)
-        gestureStatus = findViewById(R.id.gestureStatus)
-
-        setupAI()
-        startCamera()
-    }
-
-    private fun setupAI() {
-        val baseOptions = com.google.mediapipe.tasks.core.BaseOptions.builder()
-            .setModelAssetPath("hand_landmarker.task")
-            .build()
-
-        val options = HandLandmarkerOptions.builder()
-            .setBaseOptions(baseOptions)
-            .setMinHandDetectionConfidence(0.5f)
-            .setRunningMode(RunningMode.IMAGE)
-            .build()
-
-        handLandmarker = HandLandmarker.createFromOptions(this, options)
-    }
-
-    private fun startCamera() {
-        val cameraProviderFuture = ProcessCameraProvider.getInstance(this)
-        cameraProviderFuture.addListener({
-            val cameraProvider = cameraProviderFuture.get()
-            val preview = Preview.Builder().build().also {
-                it.setSurfaceProvider(viewFinder.surfaceProvider)
-            }
-            try {
-                cameraProvider.unbindAll()
-                cameraProvider.bindToLifecycle(this, CameraSelector.DEFAULT_FRONT_CAMERA, preview)
-            } catch(e: Exception) {
-                gestureStatus.text = "Camera Error: ${e.message}"
-            }
-        }, ContextCompat.getMainExecutor(this))
-    }
-
-    // Nearby Share Callbacks
-    private val connectionLifecycleCallback = object : ConnectionLifecycleCallback() {
-        override fun onConnectionInitiated(endpointId: String, info: ConnectionInfo) {
-            Nearby.getConnectionsClient(this@MainActivity).acceptConnection(endpointId, payloadCallback)
+        
+        // UI Layout set karna
+        val textView = TextView(this).apply {
+            text = "Era Share: Initializing..."
+            textSize = 20f
+            gravity = android.view.Gravity.CENTER
         }
-        override fun onConnectionResult(endpointId: String, result: ConnectionResolution) {
-            if (result.status.isSuccess) Toast.makeText(this@MainActivity, "Connected!", Toast.LENGTH_SHORT).show()
+        setContentView(textView)
+
+        // Permissions mangna
+        if (allPermissionsGranted()) {
+            startAppLogic(textView)
+        } else {
+            ActivityCompat.requestPermissions(this, REQUIRED_PERMISSIONS, 100)
         }
-        override fun onDisconnected(endpointId: String) {}
     }
 
-    private val payloadCallback = object : PayloadCallback() {
-        override fun onPayloadReceived(endpointId: String, payload: Payload) {
-            if (payload.type == Payload.Type.FILE) gestureStatus.text = "File Received! ✅"
-        }
-        override fun onPayloadTransferUpdate(endpointId: String, update: PayloadTransferUpdate) {}
-    }
-
-    private fun startSharing() {
-        Nearby.getConnectionsClient(this).startAdvertising("Sender", SERVICE_ID, connectionLifecycleCallback, AdvertisingOptions.Builder().setStrategy(STRATEGY).build())
-    }
-
-    private fun startReceiving() {
-        Nearby.getConnectionsClient(this).startDiscovery(SERVICE_ID, object : EndpointDiscoveryCallback() {
-            override fun onEndpointFound(id: String, info: DiscoveredEndpointInfo) {
-                Nearby.getConnectionsClient(this@MainActivity).requestConnection("Receiver", id, connectionLifecycleCallback)
+    private fun startAppLogic(view: TextView) {
+        try {
+            // Yahan hum check kar rahe hain ki model file hai ya nahi
+            val assets = assets.list("")
+            if (assets?.contains("hand_landmarker.task") == true) {
+                view.text = "Hand Landmarker Found!\nShow ✊ to Send | ✋ to Receive"
+            } else {
+                view.text = "Error: hand_landmarker.task not found in assets!"
             }
-            override fun onEndpointLost(id: String) {}
-        }, DiscoveryOptions.Builder().setStrategy(STRATEGY).build())
+        } catch (e: Exception) {
+            view.text = "Crash Prevented: ${e.message}"
+        }
+    }
+
+    private fun allPermissionsGranted() = REQUIRED_PERMISSIONS.all {
+        ContextCompat.checkSelfPermission(baseContext, it) == PackageManager.PERMISSION_GRANTED
     }
 }
